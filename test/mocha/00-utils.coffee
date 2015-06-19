@@ -22,6 +22,9 @@ describe 'utils', ->
       it 'should not be an array', ->
         isArray(f).should.not.be.true
 
+      it 'truth test', ->
+        true.should.be.true
+
     describe 'An object', ->
 
       o = {}
