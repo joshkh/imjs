@@ -1,6 +1,7 @@
 URL                = require 'url'
 JSONStream         = require 'JSONStream'
-http               = require 'http'
+# http               = require 'http'
+request            = require 'superagent'
 {ACCEPT_HEADER}    = require './constants'
 {VERSION}          = require './version'
 {error, defer, merge, invoke} = utils = require('./util')
@@ -29,7 +30,8 @@ exports.supports = -> true
 # The function to use when streaming results one by
 # one from the connection, rather than buffering them all
 # in memory.
-streaming = (opts, resolve, reject) -> (resp) ->
+streaming = (opts, resolve, reject, resp) ->
+  console.log "streaming"
   if not resp.pipe?
     return reject new Error 'response is not a stream'
 
@@ -52,16 +54,19 @@ streaming = (opts, resolve, reject) -> (resp) ->
 getMsg = ({type, url}, text, e, code) ->
   """Could not parse response to #{ type } #{ url }: "#{ text }" (#{ code }: #{ e })"""
 
-blocking = (opts, resolve, reject) -> (resp) ->
+blocking = (opts, resolve, reject, resp) ->
+
   containerBuffer = ''
   resp.on 'data', (chunk) -> containerBuffer += chunk
   resp.on 'error', reject
-  resp.on 'end', ->
+  do (resp) ->
+    console.log "GOT IN HERE"
     ct = resp.headers['content-type']
     if 'application/json' is ct or /json/.test(opts.dataType) or /json/.test opts.data.format
       if '' is containerBuffer and resp.statusCode is 200
         # No body, but success.
-        resolve()
+        console.log "resolving"
+        resolve resp
       else
         try
           parsed = JSON.parse containerBuffer
@@ -142,23 +147,31 @@ parseOptions = (opts) ->
   return [parsed, postdata]
 
 exports.doReq = (opts, iter) ->
+  # console.log "doreq called", request
   {promise, resolve, reject} = defer()
   promise.then null, opts.error
 
   try
     [url, postdata] = parseOptions opts
-    handler = (if iter then streaming else blocking) opts, resolve, reject
+    # handler = (if iter then streaming else blocking) opts, resolve, reject
 
     # We construct the request here.
-    req = http.request url, handler
+    req = request url
+
+    #
+    # req.on 'end', (err) ->
+    #   console.log "gotcha"
 
     req.on 'error', (err) -> reject new Error "Error: #{ url.method } #{ opts.url }: #{ err }"
 
     if postdata?
+      console.log "WE HAVE POSTDATA"
       req.write postdata
 
-    # And sent it off here.
-    req.end()
+    # # And sent it off here.
+    req.end (err, res) ->
+      if (res)
+        (if iter then streaming else blocking) opts, resolve, reject, res
 
     timeout = opts.timeout
 
@@ -169,4 +182,3 @@ exports.doReq = (opts, iter) ->
     reject e
 
   return promise
-
