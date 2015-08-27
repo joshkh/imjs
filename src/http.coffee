@@ -13,7 +13,7 @@ USER_AGENT = "node-http/imjs-#{ VERSION }"
 # Pattern to match optional trailing commas
 PESKY_COMMA = /,\s*$/
 
-# The urlencoded content-type.
+# The urlencoded Content-Type.
 URLENC = "application/x-www-form-urlencoded"
 
 # Get the method we should actually use to make a request of
@@ -56,41 +56,42 @@ getMsg = ({type, url}, text, e, code) ->
   """Could not parse response to #{ type } #{ url }: "#{ text }" (#{ code }: #{ e })"""
 
 blocking = (opts, resolve, reject) -> (resp) ->
-  #console.log "blocking"
-  #console.log "blocking opts", opts
-  # #console.log "resp is", resp
+  console.log "blocking"
+  console.log "blocking opts", opts
+  console.log "resp is", resp
   containerBuffer = ''
   resp.on 'data', (chunk) -> containerBuffer += chunk
   resp.on 'error', reject
   resp.on 'end', ->
-    #console.log "BLOCKING HAS ENDED"
-    ct = resp.headers['content-type']
+    # console.log "buffer is", containerBuffer
+    console.log "BLOCKING HAS ENDED"
+    ct = resp.headers['Content-Type']
     #console.log "GOT CT", ct
     if 'application/json' is ct or /json/.test(opts.dataType) or /json/.test opts.data.format
       if '' is containerBuffer and resp.statusCode is 200
         # No body, but success.
-        #console.log "NO BODY"
+        console.log "NO BODY"
         resolve()
       else
-        #console.log "TRYING TO PARSE HEADERS"
+        console.log "TRYING TO PARSE HEADERS"
         try
           parsed = JSON.parse containerBuffer
-          #console.log "got after parsed"
+          console.log "got after parsed"
           if err = parsed.error
-            #console.log "got a parsed error"
-            #console.log "err", err
+            console.log "got a parsed error"
+            console.log "err", err
             reject new Error(err)
           else
-            #console.log "RESOLVING TO TRUE"
+            console.log "RESOLVING TO TRUE"
             resolve parsed
         catch e
-          #console.log "GOT AN ERROR2"
+          console.log "GOT AN ERROR2"
           if resp.statusCode >= 400
             reject new Error(resp.statusCode)
           else
             reject new Error(getMsg opts, containerBuffer, e, resp.statusCode)
     else
-      #console.log "UH OH"
+      console.log "UH OH"
       if match = containerBuffer.match /\[ERROR\] (\d+)([\s\S]*)/
         reject new Error(match[2])
       else
@@ -164,24 +165,51 @@ parseOptions = (opts) ->
   return [parsed, postdata]
 
 exports.doReq = (opts, iter) ->
-  debugger
-  #console.log "DOREQOPTS", opts
-  #console.log "HEADERS", opts.headers
+
+  # debugger;
+  # debugger
+  console.log "DOREQOPTS", opts
+  # console.log "HEADERS", opts.headers
   # opts.type = opts.method
   {promise, resolve, reject} = defer()
   promise.then null, opts.error
 
+
+
   try
     [url, postdata] = parseOptions opts
+    console.log "PARSED", url
+    console.log "PARSEDPOSTDATA", postdata
     handler = (if iter then streaming else blocking) opts, resolve, reject
+
+
 
     # We construct the request here.
     # req = http.request url, handler
+
+
+      # debugger
+
+
+
     console.log "CONSTRUCTING WITH", url
-    req = request url.href, url
+    try
+      req = request url.href, url
+      if postdata?
+        req.body = postdata
+        req.removeHeader "Content-Type"
+        req.setHeader "Content-Type", "application/x-www-form-urlencoded"
+    catch e
+      console.log e
+      debugger
+
     # req.method = url.method
 
+    # if postdata?
+    #   debugger;
+    #   req.form postdata
 
+    console.log "final req is", req
     # if url.headers?
     #   try
     #   req.set url.headers
@@ -190,20 +218,19 @@ exports.doReq = (opts, iter) ->
     # else
       #console.log "no need to set headers"
     #console.log "finishing the header check"
-    req.parse handler
+    # req.parse handler
+    req.on 'response', (x) ->
+      console.log "TESTING"
+      handler x
 
     req.on 'error', (err) -> reject new Error "Error: #{ url.method } #{ opts.url }: #{ err }"
 
-    if postdata?
-      #console.log "has post data"
+
       #console.log postdata
       # req2.write postdata
-      req.send postdata
+      # req.send postdata
       # #console.log "req is now", req
 
-    #console.log "REQIS"
-    #console.log req
-    #console.log "******************************"
 
 
 

@@ -119,6 +119,9 @@
   blocking = function(opts, resolve, reject) {
     return function(resp) {
       var containerBuffer;
+      console.log("blocking");
+      console.log("blocking opts", opts);
+      console.log("resp is", resp);
       containerBuffer = '';
       resp.on('data', function(chunk) {
         return containerBuffer += chunk;
@@ -126,20 +129,28 @@
       resp.on('error', reject);
       return resp.on('end', function() {
         var ct, e, err, f, match, parsed, ref1;
-        ct = resp.headers['content-type'];
+        console.log("BLOCKING HAS ENDED");
+        ct = resp.headers['Content-Type'];
         if ('application/json' === ct || /json/.test(opts.dataType) || /json/.test(opts.data.format)) {
           if ('' === containerBuffer && resp.statusCode === 200) {
+            console.log("NO BODY");
             return resolve();
           } else {
+            console.log("TRYING TO PARSE HEADERS");
             try {
               parsed = JSON.parse(containerBuffer);
+              console.log("got after parsed");
               if (err = parsed.error) {
+                console.log("got a parsed error");
+                console.log("err", err);
                 return reject(new Error(err));
               } else {
+                console.log("RESOLVING TO TRUE");
                 return resolve(parsed);
               }
             } catch (_error) {
               e = _error;
+              console.log("GOT AN ERROR2");
               if (resp.statusCode >= 400) {
                 return reject(new Error(resp.statusCode));
               } else {
@@ -148,6 +159,7 @@
             }
           }
         } else {
+          console.log("UH OH");
           if (match = containerBuffer.match(/\[ERROR\] (\d+)([\s\S]*)/)) {
             return reject(new Error(match[2]));
           } else {
@@ -265,22 +277,36 @@
   };
 
   exports.doReq = function(opts, iter) {
-    debugger;
     var e, handler, postdata, promise, ref1, ref2, reject, req, resolve, timeout, url;
+    console.log("DOREQOPTS", opts);
     ref1 = defer(), promise = ref1.promise, resolve = ref1.resolve, reject = ref1.reject;
     promise.then(null, opts.error);
     try {
       ref2 = parseOptions(opts), url = ref2[0], postdata = ref2[1];
+      console.log("PARSED", url);
+      console.log("PARSEDPOSTDATA", postdata);
       handler = (iter ? streaming : blocking)(opts, resolve, reject);
       console.log("CONSTRUCTING WITH", url);
-      req = request(url.href, url);
-      req.parse(handler);
+      try {
+        req = request(url.href, url);
+        if (postdata != null) {
+          req.body = postdata;
+          req.removeHeader("Content-Type");
+          req.setHeader("Content-Type", "application/x-www-form-urlencoded");
+        }
+      } catch (_error) {
+        e = _error;
+        console.log(e);
+        debugger;
+      }
+      console.log("final req is", req);
+      req.on('response', function(x) {
+        console.log("TESTING");
+        return handler(x);
+      });
       req.on('error', function(err) {
         return reject(new Error("Error: " + url.method + " " + opts.url + ": " + err));
       });
-      if (postdata != null) {
-        req.send(postdata);
-      }
       req.end();
       timeout = opts.timeout;
       if (timeout > 0) {
@@ -35390,15 +35416,15 @@ Multipart.prototype.setHeaders = function (chunked) {
     self.request.setHeader('transfer-encoding', 'chunked')
   }
 
-  var header = self.request.getHeader('content-type')
+  var header = self.request.getHeader('Content-Type')
 
   if (!header || header.indexOf('multipart') === -1) {
-    self.request.setHeader('content-type', 'multipart/related; boundary=' + self.boundary)
+    self.request.setHeader('Content-Type', 'multipart/related; boundary=' + self.boundary)
   } else {
     if (header.indexOf('boundary') !== -1) {
       self.boundary = header.replace(/.*boundary=([^\s;]+).*/, '$1')
     } else {
-      self.request.setHeader('content-type', header + '; boundary=' + self.boundary)
+      self.request.setHeader('Content-Type', header + '; boundary=' + self.boundary)
     }
   }
 }
@@ -35555,7 +35581,7 @@ OAuth.prototype.onRequest = function (_oauth) {
 
   var form
     , query
-    , contentType = headers.get('content-type') || ''
+    , contentType = headers.get('Content-Type') || ''
     , formContentType = 'application/x-www-form-urlencoded'
     , transport = _oauth.transport_method || 'header'
 
@@ -35568,7 +35594,7 @@ OAuth.prototype.onRequest = function (_oauth) {
   }
   if (transport === 'body' && (method !== 'POST' || contentType !== formContentType)) {
     self.request.emit('error', new Error('oauth: transport_method of body requires POST ' +
-      'and content-type ' + formContentType))
+      'and Content-Type ' + formContentType))
   }
 
   if (!form && typeof _oauth.body_hash === 'boolean') {
@@ -35785,7 +35811,7 @@ Redirect.prototype.onResponse = function (response) {
     delete request._form
     if (request.headers) {
       request.removeHeader('host')
-      request.removeHeader('content-type')
+      request.removeHeader('Content-Type')
       request.removeHeader('content-length')
       if (request.uri.hostname !== request.originalHost.split(':')[0]) {
         // Remove authorization if changing hostnames (but not if just
@@ -35828,7 +35854,7 @@ var defaultProxyHeaderWhiteList = [
   'content-location',
   'content-md5',
   'content-range',
-  'content-type',
+  'Content-Type',
   'connection',
   'date',
   'expect',
@@ -53867,8 +53893,8 @@ Request.prototype.init = function (options) {
     }
     self.src = src
     if (isReadStream(src)) {
-      if (!self.hasHeader('content-type')) {
-        self.setHeader('content-type', mime.lookup(src.path))
+      if (!self.hasHeader('Content-Type')) {
+        self.setHeader('Content-Type', mime.lookup(src.path))
       }
     } else {
       if (src.headers) {
@@ -53878,8 +53904,8 @@ Request.prototype.init = function (options) {
           }
         }
       }
-      if (self._json && !self.hasHeader('content-type')) {
-        self.setHeader('content-type', 'application/json')
+      if (self._json && !self.hasHeader('Content-Type')) {
+        self.setHeader('Content-Type', 'application/json')
       }
       if (src.method && !self.explicitMethod) {
         self.method = src.method
@@ -54464,8 +54490,8 @@ Request.prototype.pipeDest = function (dest) {
   var response = self.response
   // Called after the response is received
   if (dest.headers && !dest.headersSent) {
-    if (response.caseless.has('content-type')) {
-      var ctname = response.caseless.has('content-type')
+    if (response.caseless.has('Content-Type')) {
+      var ctname = response.caseless.has('Content-Type')
       if (dest.setHeader) {
         dest.setHeader(ctname, response.headers[ctname])
       }
@@ -54526,8 +54552,8 @@ Request.prototype.qs = function (q, clobber) {
 Request.prototype.form = function (form) {
   var self = this
   if (form) {
-    if (!/^application\/x-www-form-urlencoded\b/.test(self.getHeader('content-type'))) {
-      self.setHeader('content-type', 'application/x-www-form-urlencoded')
+    if (!/^application\/x-www-form-urlencoded\b/.test(self.getHeader('Content-Type'))) {
+      self.setHeader('Content-Type', 'application/x-www-form-urlencoded')
     }
     self.body = (typeof form === 'string')
       ? self._qs.rfc3986(form.toString('utf8'))
@@ -54564,19 +54590,19 @@ Request.prototype.json = function (val) {
   self._json = true
   if (typeof val === 'boolean') {
     if (self.body !== undefined) {
-      if (!/^application\/x-www-form-urlencoded\b/.test(self.getHeader('content-type'))) {
+      if (!/^application\/x-www-form-urlencoded\b/.test(self.getHeader('Content-Type'))) {
         self.body = safeStringify(self.body)
       } else {
         self.body = self._qs.rfc3986(self.body)
       }
-      if (!self.hasHeader('content-type')) {
-        self.setHeader('content-type', 'application/json')
+      if (!self.hasHeader('Content-Type')) {
+        self.setHeader('Content-Type', 'application/json')
       }
     }
   } else {
     self.body = safeStringify(val)
-    if (!self.hasHeader('content-type')) {
-      self.setHeader('content-type', 'application/json')
+    if (!self.hasHeader('Content-Type')) {
+      self.setHeader('Content-Type', 'application/json')
     }
   }
 
@@ -54626,7 +54652,7 @@ Request.prototype.aws = function (opts, now) {
     , secret: opts.secret
     , verb: self.method.toUpperCase()
     , date: date
-    , contentType: self.getHeader('content-type') || ''
+    , contentType: self.getHeader('Content-Type') || ''
     , md5: self.getHeader('content-md5') || ''
     , amazonHeaders: aws.canonicalizeHeaders(self.headers)
     }
