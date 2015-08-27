@@ -18,7 +18,7 @@
 
   "indentation" : {
     "value" : 2,
-    "level" : "error"
+    "level" : "ignore"
   },
 
   "no_implicit_braces" : {
@@ -52,6 +52,18 @@
   },
 
   "no_stand_alone_at" : {
+    "level": "ignore"
+  },
+
+  "ensure_comprehensions" : {
+    "level": "ignore"
+  },
+
+  "no_nested_string_interpolation" : {
+    "level": "ignore"
+  },
+
+  "no_debugger" : {
     "level": "ignore"
   }
 

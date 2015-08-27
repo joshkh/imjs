@@ -1,6 +1,8 @@
 URL                = require 'url'
 JSONStream         = require 'JSONStream'
-http               = require 'http'
+# http               = require 'http'
+# request         = require 'superagent'
+request = require 'request'
 {ACCEPT_HEADER}    = require './constants'
 {VERSION}          = require './version'
 {error, defer, merge, invoke} = utils = require('./util')
@@ -30,6 +32,7 @@ exports.supports = -> true
 # one from the connection, rather than buffering them all
 # in memory.
 streaming = (opts, resolve, reject) -> (resp) ->
+  #console.log "straming"
   if not resp.pipe?
     return reject new Error 'response is not a stream'
 
@@ -53,28 +56,41 @@ getMsg = ({type, url}, text, e, code) ->
   """Could not parse response to #{ type } #{ url }: "#{ text }" (#{ code }: #{ e })"""
 
 blocking = (opts, resolve, reject) -> (resp) ->
+  #console.log "blocking"
+  #console.log "blocking opts", opts
+  # #console.log "resp is", resp
   containerBuffer = ''
   resp.on 'data', (chunk) -> containerBuffer += chunk
   resp.on 'error', reject
   resp.on 'end', ->
+    #console.log "BLOCKING HAS ENDED"
     ct = resp.headers['content-type']
+    #console.log "GOT CT", ct
     if 'application/json' is ct or /json/.test(opts.dataType) or /json/.test opts.data.format
       if '' is containerBuffer and resp.statusCode is 200
         # No body, but success.
+        #console.log "NO BODY"
         resolve()
       else
+        #console.log "TRYING TO PARSE HEADERS"
         try
           parsed = JSON.parse containerBuffer
+          #console.log "got after parsed"
           if err = parsed.error
+            #console.log "got a parsed error"
+            #console.log "err", err
             reject new Error(err)
           else
+            #console.log "RESOLVING TO TRUE"
             resolve parsed
         catch e
+          #console.log "GOT AN ERROR2"
           if resp.statusCode >= 400
             reject new Error(resp.statusCode)
           else
             reject new Error(getMsg opts, containerBuffer, e, resp.statusCode)
     else
+      #console.log "UH OH"
       if match = containerBuffer.match /\[ERROR\] (\d+)([\s\S]*)/
         reject new Error(match[2])
       else
@@ -107,6 +123,7 @@ rejectAfter = (timeout, reject, promise) ->
   promise.then -> cancelTimeout to
 
 parseOptions = (opts) ->
+  #console.log "parseoptions are", opts
   if not opts.url
     throw new Error("No url provided in #{ JSON.stringify opts }")
 
@@ -118,6 +135,7 @@ parseOptions = (opts) ->
     postdata = utils.querystring opts.data
 
   parsed = URL.parse(opts.url, true)
+  #console.log "PARSED", parsed
   parsed.withCredentials = false
   parsed.method = (opts.type || 'GET')
   if opts.port?
@@ -138,10 +156,18 @@ parseOptions = (opts) ->
     parsed.headers[k] = v for k, v of opts.headers
   if opts.auth?
     parsed.auth = opts.auth
+    #console.log "auth"
+    #console.log parsed.auth
+
+  #console.log "-----------finished parsed", parsed
 
   return [parsed, postdata]
 
 exports.doReq = (opts, iter) ->
+  debugger
+  #console.log "DOREQOPTS", opts
+  #console.log "HEADERS", opts.headers
+  # opts.type = opts.method
   {promise, resolve, reject} = defer()
   promise.then null, opts.error
 
@@ -150,15 +176,40 @@ exports.doReq = (opts, iter) ->
     handler = (if iter then streaming else blocking) opts, resolve, reject
 
     # We construct the request here.
-    req = http.request url, handler
+    # req = http.request url, handler
+    console.log "CONSTRUCTING WITH", url
+    req = request url.href, url
+    # req.method = url.method
+
+
+    # if url.headers?
+    #   try
+    #   req.set url.headers
+      #console.log "finished setting headers"
+      #console.log "headers are now", req.headers
+    # else
+      #console.log "no need to set headers"
+    #console.log "finishing the header check"
+    req.parse handler
 
     req.on 'error', (err) -> reject new Error "Error: #{ url.method } #{ opts.url }: #{ err }"
 
     if postdata?
-      req.write postdata
+      #console.log "has post data"
+      #console.log postdata
+      # req2.write postdata
+      req.send postdata
+      # #console.log "req is now", req
+
+    #console.log "REQIS"
+    #console.log req
+    #console.log "******************************"
+
+
 
     # And sent it off here.
     req.end()
+    # req2.end()
 
     timeout = opts.timeout
 
@@ -169,4 +220,3 @@ exports.doReq = (opts, iter) ->
     reject e
 
   return promise
-

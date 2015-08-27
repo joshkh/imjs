@@ -266,6 +266,7 @@ class Service
     if @token? and NEEDS_AUTH req.path, opts.data?.query
       if version >= 14
         opts.headers.Authorization = "Token #{ @token }"
+
       else if 'string' is typeof opts.data
         pathAdditions.push ['token', @token]
       else
@@ -924,7 +925,7 @@ Service::rowByRow = (q, args...) ->
     f.apply this, arguments
   else
     @query(q).then (query) => @rowByRow query, args...
-    
+
 # Alias for {Service#rowByRow}
 Service::eachRow = Service::rowByRow
 
@@ -950,8 +951,8 @@ Service::recordByRecord = (q, args...) ->
     f.apply this, arguments
   else
     @query(q).then (query) => @recordByRecord query, args...
-  
-  
+
+
 # Alias for {Service#recordByRecord}
 Service::eachRecord = Service::recordByRecord
 
