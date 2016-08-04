@@ -12,6 +12,8 @@ toRows = (text) -> text.split /\n/
 
 describe 'TSV results', ->
 
+  rowresults = 0
+
   @slow SLOW
   {service, youngerEmployees} = new Fixture()
 
@@ -20,17 +22,17 @@ describe 'TSV results', ->
     from: 'Employee'
     where: youngerEmployees.where
 
-  @beforeAll prepare ->
+  @beforeAll ->
     service.query(query)
            .then (q) -> service.post 'query/results', format: 'tsv', query: q.toXML()
-           .then toRows
-  
+         .then toRows
+         .then (r) -> rowresults = r
+
   describe '#post(path, format: "tsv")', ->
 
-    it "should return #{ ROWS } rows", eventually (rows) ->
-      rows.length.should.eql ROWS
+    it "should return #{ ROWS } rows", ->
+      rowresults.length.should.eql ROWS
 
-    it 'should return things that look like tab separated values', eventually ([row]) ->
-      should.exist row
-      row.should.equal ROW
-
+    it 'should return things that look like tab separated values', ->
+      should.exist rowresults
+      rowresults[0].should.equal ROW
